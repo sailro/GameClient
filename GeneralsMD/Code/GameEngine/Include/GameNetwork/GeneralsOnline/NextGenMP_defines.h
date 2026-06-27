@@ -29,6 +29,12 @@
 //#define USE_DEBUG_ON_LIVE_SERVER 1
 #endif
 
+// Custom friends build: enable the live-server debug client in Release so the server-side exe-CRC
+// update gate is bypassed, letting this self-built client connect to the live/prod servers for private
+// matches (using GOAC, which only checks INI parameters). This keeps the PROD endpoints and every other
+// Release behavior identical to the official build; only the mandatory-update prompt is skipped.
+#define USE_DEBUG_ON_LIVE_SERVER 1
+
 #if !defined(_DEBUG)
 //#define USE_TEST_ENV 1
 #endif
