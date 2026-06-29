@@ -457,6 +457,28 @@ void NGMP_OnlineServices_LobbyInterface::UpdateCurrentLobby_SetSlotState(uint16_
 		});
 }
 
+void NGMP_OnlineServices_LobbyInterface::UpdateCurrentLobby_SetSlotAIWithTeam(uint16_t slotIndex, uint16_t slotState, int team)
+{
+	std::string strURI = std::format("{}/{}", NGMP_OnlineServicesManager::GetAPIEndpoint("Lobby"), m_CurrentLobby.lobbyID);
+	std::map<std::string, std::string> mapHeaders;
+
+	nlohmann::json j;
+	j["field"] = ELobbyUpdateField::HOST_ACTION_SET_SLOT_STATE;
+	j["slot_index"] = slotIndex;
+	j["slot_state"] = slotState;
+	std::string strPostData = j.dump();
+
+	// Only assign the team once the service has confirmed the slot is an AI, otherwise the team update
+	// could be processed first and rejected (requests are sent concurrently via curl_multi).
+	NGMP_OnlineServicesManager::GetInstance()->GetHTTPManager()->SendPOSTRequest(strURI.c_str(), EIPProtocolVersion::DONT_CARE, mapHeaders, strPostData.c_str(), [this, team, slotIndex](bool bSuccess, int statusCode, std::string strBody, HTTPRequest* pReq)
+		{
+			if (bSuccess)
+			{
+				UpdateCurrentLobby_AITeam(slotIndex, team);
+			}
+		});
+}
+
 void NGMP_OnlineServices_LobbyInterface::UpdateCurrentLobby_KickUser(int64_t userID, UnicodeString name)
 {
 	std::string strURI = std::format("{}/{}", NGMP_OnlineServicesManager::GetAPIEndpoint("Lobby"), m_CurrentLobby.lobbyID);

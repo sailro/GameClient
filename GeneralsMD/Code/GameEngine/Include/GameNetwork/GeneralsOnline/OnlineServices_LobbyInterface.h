@@ -232,6 +232,10 @@ public:
 
 	void UpdateCurrentLobby_KickUser(int64_t userID, UnicodeString name);
 	void UpdateCurrentLobby_SetSlotState(uint16_t slotIndex, uint16_t slotState);
+	// Sets a slot to an AI state and, once the service confirms it, assigns the AI's team. Chaining the
+	// two requests guarantees the team update is only sent after the slot is actually an AI server-side,
+	// which the service requires (a plain SetSlotState + AITeam pair could otherwise race when batched).
+	void UpdateCurrentLobby_SetSlotAIWithTeam(uint16_t slotIndex, uint16_t slotState, int team);
 
 	void UpdateCurrentLobby_ForceReady();
 

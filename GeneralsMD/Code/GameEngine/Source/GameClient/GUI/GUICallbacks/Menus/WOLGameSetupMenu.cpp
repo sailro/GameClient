@@ -3644,6 +3644,7 @@ Bool handleGameSetupSlashCommands(UnicodeString uText)
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/setpassword <password> - Set a lobby password (host only)."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/removepassword - Remove the lobby password (host only)."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/maxcameraheight <value> - Set the camera height limit (host only)."), helpColor, -1, -1);
+		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/fill - Fill open slots with Hard AI on Team 4 (host only)."), helpColor, -1, -1);
 		// GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/leave - Return to the main lobby."), helpColor, -1, -1);
 		// GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/quit - Exit the game."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/support - Open the GeneralsOnline Discord."), helpColor, -1, -1);
@@ -3760,6 +3761,56 @@ Bool handleGameSetupSlashCommands(UnicodeString uText)
 						return TRUE; // was a slash command
 					}
 				}
+			}
+		}
+
+		return TRUE; // was a slash command
+	}
+	else if (token == "fill")
+	{
+		NGMP_OnlineServices_LobbyInterface* pLobbyInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_LobbyInterface>();
+		if (pLobbyInterface != nullptr && pLobbyInterface->IsInLobby())
+		{
+			if (pLobbyInterface->IsHost())
+			{
+				NGMPGame* myGame = pLobbyInterface->GetCurrentGame();
+				if (myGame != nullptr)
+				{
+					// "Team 4" in the team combo box. PopulateTeamComboBox maps the visible team label N to
+					// the zero-based internal team number N-1, so team 4 is internal team 3.
+					const int fillTeam = 3;
+					Int numFilled = 0;
+
+					for (Int i = 0; i < MAX_SLOTS; ++i)
+					{
+						GameSlot* slot = myGame->getSlot(i);
+						if (slot != nullptr && slot->getState() == SLOT_OPEN)
+						{
+							// "Hard AI" in the player combo box is SLOT_BRUTAL_AI. Set it locally for an
+							// immediate UI update, then sync to the service, which assigns the team once the
+							// slot is confirmed to be an AI. Color and army are intentionally left as-is.
+							slot->setState(SLOT_BRUTAL_AI);
+							pLobbyInterface->UpdateCurrentLobby_SetSlotAIWithTeam(i, SLOT_BRUTAL_AI, fillTeam);
+							++numFilled;
+						}
+					}
+
+					if (numFilled > 0)
+					{
+						myGame->resetAccepted();
+						if (TheNGMPGame && TheNGMPGame->IsCountdownStarted())
+							TheNGMPGame->StopCountdown();
+						WOLDisplaySlotList();
+					}
+
+					UnicodeString msg;
+					msg.format(L"Filled %d open slot(s) with Hard AI on Team 4.", numFilled);
+					GadgetListBoxAddEntryText(listboxGameSetupChat, msg, GameSpyColor[GSCOLOR_CHAT_NORMAL], -1, -1);
+				}
+			}
+			else
+			{
+				GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"You must be the lobby host to fill the open slots."), GameSpyColor[GSCOLOR_CHAT_NORMAL], -1, -1);
 			}
 		}
 
