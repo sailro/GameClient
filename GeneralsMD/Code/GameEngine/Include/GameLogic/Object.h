@@ -627,6 +627,10 @@ public:
 	Bool isNonFactionStructure() const;
 
 	Bool isHero() const;
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Bool isChampion() const;
+	void setChampion(Bool champion);
+#endif
 
 	Bool getReceivingDifficultyBonus() const { return m_isReceivingDifficultyBonus; }
 	void setReceivingDifficultyBonus(Bool receive);

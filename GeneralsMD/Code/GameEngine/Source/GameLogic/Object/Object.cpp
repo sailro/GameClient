@@ -2136,6 +2136,32 @@ Bool Object::isHero() const
 	return isKindOf( KINDOF_HERO );
 }
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+//-------------------------------------------------------------------------------------------------
+Bool Object::isChampion() const
+{
+	return testWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
+}
+
+//-------------------------------------------------------------------------------------------------
+void Object::setChampion(Bool champion)
+{
+	if (champion)
+		setWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
+	else
+		clearWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
+
+	Drawable *drawable = getDrawable();
+	if (drawable)
+	{
+		if (champion)
+			drawable->setTintStatus(TINT_STATUS_CHAMPION);
+		else
+			drawable->clearTintStatus(TINT_STATUS_CHAMPION);
+	}
+}
+#endif
+
 //-------------------------------------------------------------------------------------------------
 void Object::setReceivingDifficultyBonus(Bool receive)
 {
@@ -3097,6 +3123,10 @@ void Object::friend_bindToDrawable( Drawable *draw )
 			}
 		}
 		m_drawable->clearAndSetModelConditionFlags(clr, set);
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+		if (isChampion())
+			m_drawable->setTintStatus(TINT_STATUS_CHAMPION);
+#endif
 	}
 
 	for (BehaviorModule** b = m_behaviors; *b; ++b)
@@ -4664,6 +4694,20 @@ void Object::onCapture( Player *oldOwner, Player *newOwner )
 	// rip through the behavior modules and call the onCapture for any modules that care
 	for( BehaviorModule **module = m_behaviors; *module; ++module )
 		(*module)->onCapture( oldOwner, newOwner );
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	// Keep at most one living champion after ownership changes. Champion status follows a captured
+	// unit only when the new owner is an active playable side without another champion.
+	if (oldOwner != newOwner
+			&& isChampion()
+			&& (newOwner == nullptr
+				|| !newOwner->isPlayableSide()
+				|| !newOwner->isPlayerActive()
+				|| newOwner->hasLivingChampion(this)))
+	{
+		setChampion(FALSE);
+	}
+#endif
 
 	//
 	// We have to undo our look for the old team and redo it for the new.

@@ -427,6 +427,10 @@ public:
 	/// A unit was just created and is ready to control
 	void onUnitCreated( Object *factory, Object *unit );
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Bool hasLivingChampion(const Object *ignoredObject = nullptr) const;
+#endif
+
 	/// A team is about to be destroyed.
 	void preTeamDestroy( const Team *team );
 

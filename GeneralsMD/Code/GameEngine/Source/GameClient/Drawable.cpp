@@ -1228,7 +1228,11 @@ void Drawable::updateDrawable()
 				m_colorTintEnvelope = newInstance(TintEnvelope);
 			m_colorTintEnvelope->play( &SUBDUAL_DAMAGE_COLOR, 150, 150, SUSTAIN_INDEFINITELY);
 		}
-		else if( testTintStatus(TINT_STATUS_FRENZY) )
+		else if( testTintStatus(TINT_STATUS_FRENZY)
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+				|| testTintStatus(TINT_STATUS_CHAMPION)
+#endif
+			)
 		{
 			// Disabled has precedence, so it goes first
 			if (m_colorTintEnvelope == nullptr)
@@ -5626,4 +5630,3 @@ void TintEnvelope::loadPostProcess()
 {
 
 }
-

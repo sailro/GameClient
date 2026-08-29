@@ -605,7 +605,11 @@ void W3DRadar::drawIcons( Int pixelX, Int pixelY, Int width, Int height )
 	{
 		const Object *obj = heroObj->friend_getObject();
 
-		if (!obj->isHero())
+		if (!obj->isHero()
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS) && RTS_ZEROHOUR
+				&& !obj->isChampion()
+#endif
+			)
 			continue;
 
 		if (!canRenderObject(heroObj, player))

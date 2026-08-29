@@ -760,6 +760,7 @@ void DumbProjectileBehavior::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: TheSuperHackers @bugfix Added m_currentFlightPathStep for mid-flight save/load.
+	* 3: GeneralsOnline @feature Preserve launcher weapon bonuses for mid-flight save/load.
 	*/
 // ------------------------------------------------------------------------------------------------
 void DumbProjectileBehavior::xfer( Xfer *xfer )
@@ -769,7 +770,7 @@ void DumbProjectileBehavior::xfer( Xfer *xfer )
 #if RETAIL_COMPATIBLE_XFER_SAVE
 	XferVersion currentVersion = 1;
 #else
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 #endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
@@ -824,6 +825,11 @@ void DumbProjectileBehavior::xfer( Xfer *xfer )
 	if( version >= 2 )
 	{
 		xfer->xferInt( &m_currentFlightPathStep );
+	}
+
+	if( version >= 3 )
+	{
+		xfer->xferUnsignedInt( &m_extraBonusFlags );
 	}
 
 }

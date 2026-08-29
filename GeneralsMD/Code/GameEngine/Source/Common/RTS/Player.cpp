@@ -82,6 +82,7 @@
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/AISkirmishPlayer.h"
 #include "GameLogic/ExperienceTracker.h"
+#include "GameLogic/LogicRandomValue.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Scripts.h"
 #include "GameLogic/PartitionManager.h"
@@ -1545,6 +1546,50 @@ void Player::repairStructure(ObjectID structureID)
 	}
 }
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+struct LivingChampionSearch
+{
+	const Object *ignoredObject;
+	Bool found;
+};
+
+//-------------------------------------------------------------------------------------------------
+static void findLivingChampion(Object *object, void *userData)
+{
+	LivingChampionSearch *search = static_cast<LivingChampionSearch *>(userData);
+	if (object != nullptr
+			&& !search->found
+			&& object != search->ignoredObject
+			&& object->isChampion()
+			&& !object->isEffectivelyDead())
+	{
+		search->found = TRUE;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool Player::hasLivingChampion(const Object *ignoredObject) const
+{
+	LivingChampionSearch search = { ignoredObject, FALSE };
+	iterateObjects(findLivingChampion, &search);
+	return search.found;
+}
+
+//-------------------------------------------------------------------------------------------------
+static Bool isChampionCandidate(Object *factory, const Object *unit)
+{
+	return factory != nullptr
+		&& factory->getProductionUpdateInterface() != nullptr
+		&& unit != nullptr
+		&& !unit->isEffectivelyDead()
+		&& unit->isKindOf(KINDOF_CAN_ATTACK)
+		&& (unit->isKindOf(KINDOF_INFANTRY) || unit->isKindOf(KINDOF_VEHICLE))
+		&& !unit->isKindOf(KINDOF_PROJECTILE)
+		&& !unit->isKindOf(KINDOF_MINE)
+		&& unit->hasAnyDamageWeapon();
+}
+#endif
+
 //-------------------------------------------------------------------------------------------------
 /** A unit was just created and is ready to control */
 //-------------------------------------------------------------------------------------------------
@@ -1560,6 +1605,23 @@ void Player::onUnitCreated( Object *factory, Object *unit )
 
 	if (TheGlobalData->m_exportStats)
 		StatsExporterRecordBuild(factory, unit);
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	static_assert(GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT >= 0
+			&& GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT <= 100,
+		"Champion unit chance must be a percentage");
+
+	// GeneralsOnline @feature sailro 29/08/2026 Give newly completed offensive units a synchronized
+	// chance to become the player's sole living champion. The same path is used by human and AI players.
+	if (isPlayableSide()
+			&& isPlayerActive()
+			&& isChampionCandidate(factory, unit)
+			&& !hasLivingChampion()
+			&& GameLogicRandomValue(1, 100) <= GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT)
+	{
+		unit->setChampion(TRUE);
+	}
+#endif
 
 	// ai notification callback
 	if( m_ai )

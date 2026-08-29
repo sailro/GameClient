@@ -206,6 +206,9 @@ enum WeaponBonusConditionType CPP_11(: Int)
 	WEAPONBONUSCONDITION_FRENZY_ONE,
 	WEAPONBONUSCONDITION_FRENZY_TWO,
 	WEAPONBONUSCONDITION_FRENZY_THREE,
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	WEAPONBONUSCONDITION_CHAMPION,
+#endif
 
 	WEAPONBONUSCONDITION_COUNT
 };
@@ -244,6 +247,9 @@ static const char *const TheWeaponBonusNames[] =
 	"FRENZY_ONE",
 	"FRENZY_TWO",
 	"FRENZY_THREE",
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	"CHAMPION",
+#endif
 
 	nullptr
 };
@@ -280,15 +286,27 @@ public:
 	{
 		for (int i = 0; i < FIELD_COUNT; ++i)
 			m_field[i] = 1.0f;
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+		m_championOwnerMask = 0;
+#endif
 	}
 
 	Real getField(Field f) const { return m_field[f]; }
 	void setField(Field f, Real v) { m_field[f] = v; }
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Bool isChampionAttack() const { return m_championOwnerMask != 0; }
+	PlayerMaskType getChampionOwnerMask() const { return m_championOwnerMask; }
+	void setChampionOwnerMask(PlayerMaskType mask) { m_championOwnerMask = mask; }
+#endif
+
 	void appendBonuses(WeaponBonus& bonus) const;
 
 private:
 	Real m_field[FIELD_COUNT];
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	PlayerMaskType m_championOwnerMask;
+#endif
 
 };
 

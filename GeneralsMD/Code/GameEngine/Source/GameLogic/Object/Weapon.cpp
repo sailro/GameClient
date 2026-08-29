@@ -45,6 +45,7 @@
 #include "Common/INI.h"
 #include "Common/PerfTimer.h"
 #include "Common/Player.h"
+#include "Common/PlayerList.h"
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
@@ -1365,6 +1366,12 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 
 	processHistoricDamage(source, pos);
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Player *championOwner = nullptr;
+	if (bonus.isChampionAttack() && ThePlayerList)
+		championOwner = ThePlayerList->getPlayerFromMask(bonus.getChampionOwnerMask());
+#endif
+
 //DEBUG_LOG(("WeaponTemplate::dealDamageInternal: dealing damage %s at frame %d",m_name.str(),TheGameLogic->getFrame()));
 
 	// if there's a specific victim, use it's pos (overriding the value passed in)
@@ -1548,6 +1555,12 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
       if (source && source->getControllingPlayer()) {
 				damageInfo.in.m_sourcePlayerMask = source->getControllingPlayer()->getPlayerMask();
 			}
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+			else if (bonus.isChampionAttack())
+			{
+				damageInfo.in.m_sourcePlayerMask = bonus.getChampionOwnerMask();
+			}
+#endif
 			// note, don't bother with damage multipliers here...
 			// that's handled internally by the attemptDamage() method.
 			damageInfo.in.m_amount = (curVictimDistSqr <= primaryRadiusSqr) ? primaryDamage : secondaryDamage;
@@ -1566,6 +1579,17 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 				//	damageInfo.in.m_amount = __max( damageInfo.in.m_amount, curVictimHealth );
 				//}
 			}
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+			// GeneralsOnline @feature sailro 29/08/2026 Champion weapon hits kill enemy objects while
+			// retaining the original damage FX, death type, source attribution, and normal death callbacks.
+			if (championOwner && championOwner->getRelationship(curVictim->getTeam()) == ENEMIES)
+			{
+				damageInfo.in.m_damageFXOverride = damageInfo.in.m_damageType;
+				damageInfo.in.m_damageType = DAMAGE_UNRESISTABLE;
+				damageInfo.in.m_kill = TRUE;
+			}
+#endif
 
 			// if the damage-dealer is a projectile, designate the damage as done by its launcher, not the projectile.
 			// this is much more useful for the AI...
@@ -1946,6 +1970,14 @@ void Weapon::computeBonus(const Object *source, WeaponBonusConditionFlags extraB
 		if( theirContain && theirContain->isWeaponBonusPassedToPassengers() )
 			flags |= theirContain->getWeaponBonusPassedToPassengers();
 	}
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	if ((flags & (1U << WEAPONBONUSCONDITION_CHAMPION)) != 0
+			&& source->getControllingPlayer())
+	{
+		bonus.setChampionOwnerMask(source->getControllingPlayer()->getPlayerMask());
+	}
+#endif
 
 	if (TheGlobalData->m_weaponBonusSet)
 		TheGlobalData->m_weaponBonusSet->appendBonuses(flags, bonus);
