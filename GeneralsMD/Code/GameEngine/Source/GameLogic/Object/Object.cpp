@@ -4696,11 +4696,14 @@ void Object::onCapture( Player *oldOwner, Player *newOwner )
 		(*module)->onCapture( oldOwner, newOwner );
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
-	// Keep the new owner's champion count within its human or AI limit after ownership changes.
+	// Keep at most one living champion after ownership changes. Champion status follows a captured
+	// unit only when the new owner is an active playable side without another champion.
 	if (oldOwner != newOwner
 			&& isChampion()
 			&& (newOwner == nullptr
-				|| !newOwner->canAcceptChampion(this)))
+				|| !newOwner->isPlayableSide()
+				|| !newOwner->isPlayerActive()
+				|| newOwner->hasLivingChampion(this)))
 	{
 		setChampion(FALSE);
 	}

@@ -1547,50 +1547,32 @@ void Player::repairStructure(ObjectID structureID)
 }
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
-struct LivingChampionCount
+struct LivingChampionSearch
 {
 	const Object *ignoredObject;
-	Int count;
+	Bool found;
 };
 
 //-------------------------------------------------------------------------------------------------
-static void countLivingChampion(Object *object, void *userData)
+static void findLivingChampion(Object *object, void *userData)
 {
-	LivingChampionCount *search = static_cast<LivingChampionCount *>(userData);
+	LivingChampionSearch *search = static_cast<LivingChampionSearch *>(userData);
 	if (object != nullptr
+			&& !search->found
 			&& object != search->ignoredObject
 			&& object->isChampion()
 			&& !object->isEffectivelyDead())
 	{
-		++search->count;
+		search->found = TRUE;
 	}
 }
 
 //-------------------------------------------------------------------------------------------------
-static Int getChampionLimit(const Player *player)
+Bool Player::hasLivingChampion(const Object *ignoredObject) const
 {
-	return player->getPlayerType() == PLAYER_COMPUTER
-		? GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT
-		: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT;
-}
-
-//-------------------------------------------------------------------------------------------------
-static Int getChampionChancePercent(const Player *player)
-{
-	return player->getPlayerType() == PLAYER_COMPUTER
-		? GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT
-		: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT;
-}
-
-//-------------------------------------------------------------------------------------------------
-Bool Player::canAcceptChampion(const Object *ignoredObject) const
-{
-	if (!isPlayableSide() || !isPlayerActive())
-		return FALSE;
-
-	LivingChampionCount search = { ignoredObject, 0 };
-	iterateObjects(countLivingChampion, &search);
-	return search.count < getChampionLimit(this);
+	LivingChampionSearch search = { ignoredObject, FALSE };
+	iterateObjects(findLivingChampion, &search);
+	return search.found;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1625,22 +1607,17 @@ void Player::onUnitCreated( Object *factory, Object *unit )
 		StatsExporterRecordBuild(factory, unit);
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
-	static_assert(GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT >= 0
-			&& GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT <= 100,
-		"Human champion unit chance must be a percentage");
-	static_assert(GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT >= 0
-			&& GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT <= 100,
-		"AI champion unit chance must be a percentage");
-	static_assert(GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT > 0,
-		"Human champion unit maximum must be positive");
-	static_assert(GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT > 0,
-		"AI champion unit maximum must be positive");
+	static_assert(GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT >= 0
+			&& GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT <= 100,
+		"Champion unit chance must be a percentage");
 
 	// GeneralsOnline @feature sailro 29/08/2026 Give newly completed offensive units a synchronized
-	// chance to become a champion. Human and AI limits use the same deterministic production path.
-	if (isChampionCandidate(factory, unit)
-			&& canAcceptChampion()
-			&& GameLogicRandomValue(1, 100) <= getChampionChancePercent(this))
+	// chance to become the player's sole living champion. The same path is used by human and AI players.
+	if (isPlayableSide()
+			&& isPlayerActive()
+			&& isChampionCandidate(factory, unit)
+			&& !hasLivingChampion()
+			&& GameLogicRandomValue(1, 100) <= GENERALS_ONLINE_CHAMPION_UNIT_CHANCE_PERCENT)
 	{
 		unit->setChampion(TRUE);
 	}
