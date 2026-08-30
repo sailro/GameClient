@@ -267,6 +267,15 @@ void UpgradeMuxData::muxDataProcessUpgradeRemoval(Object* obj) const
 Bool UpgradeMuxData::isTriggeredBy(const std::string &upgrade) const
 {
 	std::vector<AsciiString>::const_iterator it;
+	for( it = m_activationUpgradeNames.begin(); it != m_activationUpgradeNames.end(); ++it)
+	{
+		AsciiString trigger = *it;
+		if (stricmp(trigger.str(), upgrade.c_str()) == 0)
+		{
+			return TRUE;
+		}
+	}
+
 	for( it = m_triggerUpgradeNames.begin(); it != m_triggerUpgradeNames.end();	++it)
 	{
 		AsciiString trigger = *it;

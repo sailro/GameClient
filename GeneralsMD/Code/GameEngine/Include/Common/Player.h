@@ -428,7 +428,7 @@ public:
 	void onUnitCreated( Object *factory, Object *unit );
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
-	Bool hasLivingChampion(const Object *ignoredObject = nullptr) const;
+	Bool canAcceptChampion(const Object *ignoredObject = nullptr) const;
 #endif
 
 	/// A team is about to be destroyed.

@@ -53,6 +53,7 @@ public:
  	virtual Bool isAlreadyUpgraded() const = 0;
 	virtual Bool attemptUpgrade( const UpgradeMaskType& keyMask ) = 0;
 	virtual Bool wouldUpgrade( const UpgradeMaskType& keyMask ) const = 0;
+	virtual bool isTriggeredBy(const std::string &upgrade) const = 0;
 	virtual Bool resetUpgrade( const UpgradeMaskType& keyMask ) = 0;
 	virtual Bool isSubObjectsUpgrade() = 0;
 	virtual void forceRefreshUpgrade() = 0;
@@ -121,6 +122,7 @@ public:
 	virtual void forceRefreshUpgrade() override;
 	virtual Bool attemptUpgrade( const UpgradeMaskType& keyMask ) override;
 	virtual Bool wouldUpgrade( const UpgradeMaskType& keyMask ) const override;
+	virtual bool isTriggeredBy(const std::string &) const override { return false; }
 	virtual Bool resetUpgrade( const UpgradeMaskType& keyMask ) override;
 	virtual Bool testUpgradeConditions( const UpgradeMaskType& keyMask ) const override;
 
@@ -181,7 +183,10 @@ public:
 	// BehaviorModule
 	virtual UpgradeModuleInterface* getUpgrade() override { return this; }
 
-	bool isTriggeredBy(const std::string & upgrade) const { return getUpgradeModuleData()->m_upgradeMuxData.isTriggeredBy(upgrade); }
+	virtual bool isTriggeredBy(const std::string &upgrade) const override
+	{
+		return getUpgradeModuleData()->m_upgradeMuxData.isTriggeredBy(upgrade);
+	}
 
 protected:
 

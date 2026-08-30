@@ -2138,6 +2138,123 @@ Bool Object::isHero() const
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
 //-------------------------------------------------------------------------------------------------
+static Bool isUnsafeChampionUpgradeModule(const BehaviorModule *module)
+{
+	static NameKeyType key_ReplaceObjectUpgrade = NAMEKEY("ReplaceObjectUpgrade");
+	static NameKeyType key_RadarUpgrade = NAMEKEY("RadarUpgrade");
+	static NameKeyType key_PowerPlantUpgrade = NAMEKEY("PowerPlantUpgrade");
+	static NameKeyType key_CostModifierUpgrade = NAMEKEY("CostModifierUpgrade");
+	static NameKeyType key_GrantScienceUpgrade = NAMEKEY("GrantScienceUpgrade");
+	const NameKeyType moduleName = module->getModuleNameKey();
+
+	return moduleName == key_ReplaceObjectUpgrade
+		|| moduleName == key_RadarUpgrade
+		|| moduleName == key_PowerPlantUpgrade
+		|| moduleName == key_CostModifierUpgrade
+		|| moduleName == key_GrantScienceUpgrade;
+}
+
+//-------------------------------------------------------------------------------------------------
+static Bool triggersUnsafeChampionUpgrade(Object *object, const UpgradeTemplate *upgrade)
+{
+	for (BehaviorModule **module = object->getBehaviorModules(); *module; ++module)
+	{
+		if (isUnsafeChampionUpgradeModule(*module))
+		{
+			UpgradeModuleInterface *upgradeModule = (*module)->getUpgrade();
+			if (upgradeModule && upgradeModule->isTriggeredBy(upgrade->getUpgradeName().str()))
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+static Bool grantChampionUpgrades(Object *object, UpgradeMaskType *attemptedUpgrades)
+{
+	Bool grantedUpgrade;
+	do
+	{
+		grantedUpgrade = FALSE;
+
+		for (UpgradeTemplate *upgrade = TheUpgradeCenter->firstUpgradeTemplate();
+				upgrade != nullptr;
+				upgrade = upgrade->friend_getNext())
+		{
+			const UpgradeMaskType &upgradeMask = upgrade->getUpgradeMask();
+			if (attemptedUpgrades->testForAny(upgradeMask))
+				continue;
+
+			if (object->hasUpgrade(upgrade)
+					|| triggersUnsafeChampionUpgrade(object, upgrade))
+			{
+				attemptedUpgrades->set(upgradeMask);
+				continue;
+			}
+
+			if (object->affectedByUpgrade(upgrade))
+			{
+				attemptedUpgrades->set(upgradeMask);
+				object->giveUpgrade(upgrade);
+				if (object->isDestroyed())
+					return FALSE;
+				grantedUpgrade = TRUE;
+			}
+		}
+	}
+	while (grantedUpgrade);
+
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+static Bool grantChampionBonuses(Object *object)
+{
+	UpgradeMaskType attemptedUpgrades;
+	attemptedUpgrades.clear();
+
+	const UpgradeTemplate *veteranUpgrade = TheUpgradeCenter
+		? TheUpgradeCenter->findVeterancyUpgrade(LEVEL_VETERAN)
+		: nullptr;
+	const UpgradeTemplate *eliteUpgrade = TheUpgradeCenter
+		? TheUpgradeCenter->findVeterancyUpgrade(LEVEL_ELITE)
+		: nullptr;
+	const UpgradeTemplate *heroicUpgrade = TheUpgradeCenter
+		? TheUpgradeCenter->findVeterancyUpgrade(LEVEL_HEROIC)
+		: nullptr;
+
+	if (heroicUpgrade && triggersUnsafeChampionUpgrade(object, heroicUpgrade))
+		return FALSE;
+
+	if (TheUpgradeCenter && object->getControllingPlayer())
+	{
+		if (veteranUpgrade)
+			attemptedUpgrades.set(veteranUpgrade->getUpgradeMask());
+		if (eliteUpgrade)
+			attemptedUpgrades.set(eliteUpgrade->getUpgradeMask());
+		if (heroicUpgrade)
+			attemptedUpgrades.set(heroicUpgrade->getUpgradeMask());
+
+		// Conflicting upgrades resolve deterministically in upgrade registration order.
+		if (!grantChampionUpgrades(object, &attemptedUpgrades))
+			return FALSE;
+	}
+
+	ExperienceTracker *experienceTracker = object->getExperienceTracker();
+	if (experienceTracker)
+		experienceTracker->setMinVeterancyLevel(LEVEL_HEROIC);
+
+	if (object->isDestroyed())
+		return FALSE;
+
+	// Heroic veterancy can satisfy an AND requirement for additional unit upgrades.
+	return !TheUpgradeCenter
+		|| !object->getControllingPlayer()
+		|| grantChampionUpgrades(object, &attemptedUpgrades);
+}
+
+//-------------------------------------------------------------------------------------------------
 Bool Object::isChampion() const
 {
 	return testWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
@@ -2146,10 +2263,18 @@ Bool Object::isChampion() const
 //-------------------------------------------------------------------------------------------------
 void Object::setChampion(Bool champion)
 {
+	const Bool newlyPromoted = champion && !isChampion();
+
 	if (champion)
 		setWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
 	else
 		clearWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
+
+	if (newlyPromoted && !grantChampionBonuses(this))
+	{
+		clearWeaponBonusCondition(WEAPONBONUSCONDITION_CHAMPION);
+		return;
+	}
 
 	Drawable *drawable = getDrawable();
 	if (drawable)
@@ -4696,14 +4821,14 @@ void Object::onCapture( Player *oldOwner, Player *newOwner )
 		(*module)->onCapture( oldOwner, newOwner );
 
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
-	// Keep at most one living champion after ownership changes. Champion status follows a captured
-	// unit only when the new owner is an active playable side without another champion.
+	// Champion status follows a captured unit only when the new owner is an active playable side
+	// with room under its human or AI champion limit. Granted rank and upgrades remain after demotion.
 	if (oldOwner != newOwner
 			&& isChampion()
 			&& (newOwner == nullptr
 				|| !newOwner->isPlayableSide()
 				|| !newOwner->isPlayerActive()
-				|| newOwner->hasLivingChampion(this)))
+				|| !newOwner->canAcceptChampion(this)))
 	{
 		setChampion(FALSE);
 	}
