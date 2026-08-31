@@ -111,6 +111,10 @@
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/GameSpy/PersistentStorageThread.h"
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+#include "GameNetwork/GeneralsOnline/NGMPGame.h"
+#endif
+
 #include <rts/profile.h>
 
 struct QuitGameException {};
@@ -305,6 +309,10 @@ GameLogic::GameLogic()
 	m_loadingSave = FALSE;
 	m_clearingGameData = FALSE;
 	m_quitToDesktopAfterMatch = FALSE;
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	resetChampionRules();
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -312,6 +320,10 @@ GameLogic::GameLogic()
 // ------------------------------------------------------------------------------------------------
 void GameLogic::setDefaults(Bool loadingSaveGame)
 {
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	resetChampionRules();
+#endif
+
 	m_frame = 0;
 	m_hasUpdated = FALSE;
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
@@ -340,6 +352,99 @@ void GameLogic::setDefaults(Bool loadingSaveGame)
 		m_nextObjID = (ObjectID)1;
 
 }
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+// ------------------------------------------------------------------------------------------------
+// TheSuperHackers @feature sailro 31/08/2026 Stores synchronized, match-scoped champion rules.
+// ------------------------------------------------------------------------------------------------
+void GameLogic::resetChampionRules()
+{
+	m_humanChampionChancePercent = GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT;
+	m_humanChampionMaxCount = GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT;
+	m_aiChampionChancePercent = GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT;
+	m_aiChampionMaxCount = GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT;
+}
+
+// ------------------------------------------------------------------------------------------------
+Bool GameLogic::areChampionRulesValid(Int chancePercent, Int maxUnits)
+{
+	return chancePercent >= 0
+		&& chancePercent <= 100
+		&& maxUnits >= 0
+		&& maxUnits <= GENERALS_ONLINE_CHAMPION_UNIT_MAX_COUNT_LIMIT;
+}
+
+// ------------------------------------------------------------------------------------------------
+Bool GameLogic::setChampionRules(Bool aiPlayers, Int chancePercent, Int maxUnits)
+{
+	if (!areChampionRulesValid(chancePercent, maxUnits))
+	{
+		DEBUG_LOG(("Rejected champion rules: AI=%d chance=%d max=%d", aiPlayers, chancePercent, maxUnits));
+		return FALSE;
+	}
+
+	if (aiPlayers)
+	{
+		m_aiChampionChancePercent = chancePercent;
+		m_aiChampionMaxCount = maxUnits;
+	}
+	else
+	{
+		m_humanChampionChancePercent = chancePercent;
+		m_humanChampionMaxCount = maxUnits;
+	}
+
+	return TRUE;
+}
+
+// ------------------------------------------------------------------------------------------------
+Int GameLogic::getChampionChancePercent(Bool aiPlayers) const
+{
+	return aiPlayers ? m_aiChampionChancePercent : m_humanChampionChancePercent;
+}
+
+// ------------------------------------------------------------------------------------------------
+Int GameLogic::getChampionMaxCount(Bool aiPlayers) const
+{
+	return aiPlayers ? m_aiChampionMaxCount : m_humanChampionMaxCount;
+}
+
+// ------------------------------------------------------------------------------------------------
+bool GameLogic::onSetChampionRules(GameMessage *msg)
+{
+	if (msg->getArgumentCount() != 3
+			|| msg->getArgumentDataType(0) != ARGUMENTDATATYPE_BOOLEAN
+			|| msg->getArgumentDataType(1) != ARGUMENTDATATYPE_INTEGER
+			|| msg->getArgumentDataType(2) != ARGUMENTDATATYPE_INTEGER)
+	{
+		DEBUG_LOG(("Rejected malformed MSG_SET_CHAMPION_RULES from player %d", msg->getPlayerIndex()));
+		return false;
+	}
+
+	Player *messagePlayer = ThePlayerList->getNthPlayer(msg->getPlayerIndex());
+	Player *hostPlayer = ThePlayerList->findPlayerWithNameKey(NAMEKEY("player0"));
+	if (messagePlayer == nullptr || messagePlayer != hostPlayer)
+	{
+		DEBUG_LOG(("Rejected MSG_SET_CHAMPION_RULES from non-host player %d", msg->getPlayerIndex()));
+		return false;
+	}
+
+	const Bool aiPlayers = msg->getArgument(0)->boolean;
+	const Int chancePercent = msg->getArgument(1)->integer;
+	const Int maxUnits = msg->getArgument(2)->integer;
+	if (!setChampionRules(aiPlayers, chancePercent, maxUnits))
+		return false;
+
+	UnicodeString notification;
+	notification.format(aiPlayers
+		? L"AI champion rules changed to %d%% chance, maximum %d."
+		: L"Human champion rules changed to %d%% chance, maximum %d per player.",
+		chancePercent,
+		maxUnits);
+	TheInGameUI->messageNoFormat(notification);
+	return true;
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -507,6 +612,10 @@ void GameLogic::init()
 //-------------------------------------------------------------------------------------------------
 void GameLogic::reset()
 {
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	resetChampionRules();
+#endif
+
 	m_thingTemplateBuildableOverrides.clear();
 	m_controlBarOverrides.clear();
 
@@ -3922,6 +4031,14 @@ void GameLogic::update()
 	USE_PERF_TIMER(GameLogic_update)
 	PROFILER_SECTION_COLOR(0x4CAF50);
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	if (TheNGMPGame != nullptr
+			&& TheNGMPGame->isGameInProgress()
+			&& isInInternetGame()
+			&& m_frame >= 2)
+		TheNGMPGame->queueChampionRulesForMatch();
+#endif
+
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
 		if (m_frame % 2 != 0)
 		{
@@ -4455,6 +4572,22 @@ UnsignedInt GameLogic::getCRC(Int mode, AsciiString deepCRCFileName)
 	if (xferCRC->getXferMode() == XFER_CRC)
 	{
 		xferCRC->xferUnsignedInt(&seed);
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+		marker = "MARKER:ChampionRules";
+		xferCRC->xferAsciiString(&marker);
+		xferCRC->xferInt(&m_humanChampionChancePercent);
+		xferCRC->xferInt(&m_humanChampionMaxCount);
+		xferCRC->xferInt(&m_aiChampionChancePercent);
+		xferCRC->xferInt(&m_aiChampionMaxCount);
+		if (isInGameLogicUpdate())
+		{
+			CRCGEN_LOG(("Champion rules: human=%d%%/%d AI=%d%%/%d",
+				m_humanChampionChancePercent,
+				m_humanChampionMaxCount,
+				m_aiChampionChancePercent,
+				m_aiChampionMaxCount));
+		}
+#endif
 	}
 	marker = "MARKER:ThePartitionManager";
 	xferCRC->xferAsciiString(&marker);
@@ -5039,7 +5172,12 @@ void GameLogic::getAIMetricsStatistics(UnsignedInt* numAI, UnsignedInt* numMovin
 // ------------------------------------------------------------------------------------------------
 void GameLogic::crc(Xfer* xfer)
 {
-
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	xfer->xferInt(&m_humanChampionChancePercent);
+	xfer->xferInt(&m_humanChampionMaxCount);
+	xfer->xferInt(&m_aiChampionChancePercent);
+	xfer->xferInt(&m_aiChampionMaxCount);
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5250,6 +5388,7 @@ void GameLogic::prepareLogicForObjectLoad()
 	* 9: Added m_rankPointsToAddAtGameStart, or else on a load game, your RestartGame button will forget your exp
   * 10: xfer m_superweaponRestriction
   * 11: TheSuperHackers @fix Save objects in reverse order so they load in correct order
+	* 12: Save synchronized champion rule settings.
 	*/
 	// ------------------------------------------------------------------------------------------------
 void GameLogic::xfer(Xfer* xfer)
@@ -5259,13 +5398,28 @@ void GameLogic::xfer(Xfer* xfer)
 #if RETAIL_COMPATIBLE_XFER_SAVE
 	const XferVersion currentVersion = 10;
 #else
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	const XferVersion currentVersion = 12;
+	const XferVersion championRulesVersion = 12;
+#else
 	const XferVersion currentVersion = 11;
+#endif
 #endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion(&version, currentVersion);
 
 	// logic frame number
 	xfer->xferUnsignedInt(&m_frame);
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS) && !RETAIL_COMPATIBLE_XFER_SAVE
+	if (version >= championRulesVersion)
+	{
+		xfer->xferInt(&m_humanChampionChancePercent);
+		xfer->xferInt(&m_humanChampionMaxCount);
+		xfer->xferInt(&m_aiChampionChancePercent);
+		xfer->xferInt(&m_aiChampionMaxCount);
+	}
+#endif
 
 	//
 	// note that we do not do the id counter here, we did it in the game state block because
@@ -5690,5 +5844,3 @@ void GameLogic::loadPostProcess()
 	remakeSleepyUpdate();
 
 }
-
-

@@ -373,7 +373,9 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 	{
 		if (msg->getType() >= GameMessage::MSG_BEGIN_NETWORK_MESSAGES && msg->getType() <= GameMessage::MSG_END_NETWORK_MESSAGES)
 		{
-			if (msg->getType() != GameMessage::MSG_LOGIC_CRC && msg->getType() != GameMessage::MSG_SET_REPLAY_CAMERA)
+			if (msg->getType() != GameMessage::MSG_LOGIC_CRC
+					&& msg->getType() != GameMessage::MSG_SET_REPLAY_CAMERA
+					&& msg->getType() != GameMessage::MSG_SET_CHAMPION_RULES)
 			{
 				currentlySelectedGroup = TheAI->createGroup(); // can't do this outside a game - it'll cause sync errors galore.
 				CRCGEN_LOG(( "Creating AIGroup %d in GameLogic::logicMessageDispatcher()", currentlySelectedGroup?currentlySelectedGroup->getID():0 ));
@@ -815,6 +817,13 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 			onPurchaseScience(msg);
 			break;
 		}
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS) && RTS_ZEROHOUR
+		case GameMessage::MSG_SET_CHAMPION_RULES:
+		{
+			onSetChampionRules(msg);
+			break;
+		}
+#endif
 	}
 
 #if RETAIL_COMPATIBLE_AIGROUP

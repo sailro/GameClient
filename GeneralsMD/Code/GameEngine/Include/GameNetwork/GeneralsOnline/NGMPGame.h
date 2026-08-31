@@ -64,6 +64,16 @@ private:
 	Int m_reportedMaxPlayers;
 	Int m_reportedNumObservers;
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Int m_pendingHumanChampionChancePercent;
+	Int m_pendingHumanChampionMaxCount;
+	Int m_pendingAIChampionChancePercent;
+	Int m_pendingAIChampionMaxCount;
+	Bool m_championRulesQueuedForMatch;
+
+	void resetPendingChampionRules();
+#endif
+
 	bool m_bHasCommittedOutcome = false;
 	
 	std::chrono::system_clock::time_point matchStartTime;
@@ -169,6 +179,13 @@ public:
 
 	virtual void init(void);
 	virtual void resetAccepted(void);															///< Reset the accepted flag on all players
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Bool setPendingChampionRules(Bool aiPlayers, Int chancePercent, Int maxUnits);
+	Int getPendingChampionChancePercent(Bool aiPlayers) const;
+	Int getPendingChampionMaxCount(Bool aiPlayers) const;
+	void queueChampionRulesForMatch();
+#endif
 
 	virtual void startGame(Int gameID);														///< Mark our game as started and record the game ID.
 	void launchGame(void);																			///< NAT negotiation has finished - really start

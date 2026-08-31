@@ -196,6 +196,13 @@ public:
 
 	static Bool isInInteractiveGame(GameMode mode) { return mode != GAME_NONE && mode != GAME_SHELL; }
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	static Bool areChampionRulesValid(Int chancePercent, Int maxUnits);
+	Bool setChampionRules(Bool aiPlayers, Int chancePercent, Int maxUnits);
+	Int getChampionChancePercent(Bool aiPlayers) const;
+	Int getChampionMaxCount(Bool aiPlayers) const;
+#endif
+
 	//Kris: Cut isLoadingGame() and replaced with isLoadingMap() and isLoadingSave() -- reason: nomenclature
 	//Bool isLoadingGame() const { return m_loadingScene; }		// This is the old function that isn't very clear on it's definition.
 	Bool isLoadingMap() const { return m_loadingMap; }			// Whenever a map is in the process of loading.
@@ -379,6 +386,10 @@ private:
 	bool onAddTeam(GameMessage *msg);
 	bool onLogicCrc(GameMessage *msg);
 	bool onPurchaseScience(GameMessage *msg);
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	bool onSetChampionRules(GameMessage *msg);
+	void resetChampionRules();
+#endif
 
 	static void createOptimizedTree(const ThingTemplate *thingTemplate, Coord3D *pos, Real angle);
 
@@ -420,6 +431,13 @@ private:
 	Bool m_hasUpdated;
 
 	Int m_rankPointsToAddAtGameStart;
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	Int m_humanChampionChancePercent;
+	Int m_humanChampionMaxCount;
+	Int m_aiChampionChancePercent;
+	Int m_aiChampionMaxCount;
+#endif
 
 	Bool m_isScoringEnabled;
 	Bool m_showBehindBuildingMarkers;	//used by designers to override the user setting for cinematics

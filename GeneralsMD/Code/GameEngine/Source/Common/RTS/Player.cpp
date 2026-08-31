@@ -1549,17 +1549,13 @@ void Player::repairStructure(ObjectID structureID)
 #if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
 static Int getChampionLimit(const Player *player)
 {
-	return player->getPlayerType() == PLAYER_COMPUTER
-		? GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT
-		: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT;
+	return TheGameLogic->getChampionMaxCount(player->getPlayerType() == PLAYER_COMPUTER);
 }
 
 //-------------------------------------------------------------------------------------------------
 static Int getChampionChancePercent(const Player *player)
 {
-	return player->getPlayerType() == PLAYER_COMPUTER
-		? GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT
-		: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT;
+	return TheGameLogic->getChampionChancePercent(player->getPlayerType() == PLAYER_COMPUTER);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1635,8 +1631,12 @@ void Player::onUnitCreated( Object *factory, Object *unit )
 		"AI champion unit chance must be a percentage");
 	static_assert(GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT > 0,
 		"Human champion unit limit must be positive");
+	static_assert(GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT <= GENERALS_ONLINE_CHAMPION_UNIT_MAX_COUNT_LIMIT,
+		"Human champion unit limit exceeds the configurable maximum");
 	static_assert(GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT > 0,
 		"AI champion unit limit must be positive");
+	static_assert(GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT <= GENERALS_ONLINE_CHAMPION_UNIT_MAX_COUNT_LIMIT,
+		"AI champion unit limit exceeds the configurable maximum");
 
 	// GeneralsOnline @feature sailro 29/08/2026 Give newly completed offensive units a synchronized
 	// chance to become a champion. Humans and AI use separate synchronized chance and capacity rules.

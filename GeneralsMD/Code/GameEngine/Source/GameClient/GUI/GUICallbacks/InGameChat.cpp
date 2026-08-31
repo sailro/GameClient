@@ -32,6 +32,7 @@
 
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
+#include "Common/MessageStream.h"
 #include "GameClient/DisconnectMenu.h"
 #include "GameClient/GameWindow.h"
 #include "GameClient/Gadget.h"
@@ -162,6 +163,137 @@ int getQR2HostingStatus();
 }
 extern int isThreadHosting;
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+// ------------------------------------------------------------------------------------------------
+static Bool parseChampionRuleValue(const AsciiString &token, Int maximum, Int *value)
+{
+	const char *text = token.str();
+	if (text == nullptr || *text == '\0')
+		return FALSE;
+
+	Int parsedValue = 0;
+	for (const char *character = text; *character != '\0'; ++character)
+	{
+		if (*character < '0' || *character > '9')
+			return FALSE;
+
+		const Int digit = *character - '0';
+		if (parsedValue > (maximum - digit) / 10)
+			return FALSE;
+
+		parsedValue = parsedValue * 10 + digit;
+	}
+
+	*value = parsedValue;
+	return TRUE;
+}
+
+// ------------------------------------------------------------------------------------------------
+ChampionRuleCommandParseResult ParseChampionRulesCommand(
+	AsciiString remainder,
+	Bool aiPlayers,
+	Int *chancePercent,
+	Int *maxUnits)
+{
+	AsciiString chanceToken;
+	if (!remainder.nextToken(&chanceToken))
+		return CHAMPION_RULE_COMMAND_QUERY;
+
+	chanceToken.toLower();
+	if (chanceToken == "reset")
+	{
+		AsciiString extraToken;
+		if (remainder.nextToken(&extraToken))
+			return CHAMPION_RULE_COMMAND_INVALID;
+
+		*chancePercent = aiPlayers
+			? GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT
+			: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT;
+		*maxUnits = aiPlayers
+			? GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT
+			: GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT;
+		return CHAMPION_RULE_COMMAND_UPDATE;
+	}
+
+	AsciiString maxToken;
+	AsciiString extraToken;
+	if (!remainder.nextToken(&maxToken)
+			|| remainder.nextToken(&extraToken)
+			|| !parseChampionRuleValue(chanceToken, 100, chancePercent)
+			|| !parseChampionRuleValue(maxToken, GENERALS_ONLINE_CHAMPION_UNIT_MAX_COUNT_LIMIT, maxUnits))
+	{
+		return CHAMPION_RULE_COMMAND_INVALID;
+	}
+
+	return CHAMPION_RULE_COMMAND_UPDATE;
+}
+
+// ------------------------------------------------------------------------------------------------
+static void showChampionRules(Bool aiPlayers)
+{
+	UnicodeString message;
+	if (aiPlayers)
+	{
+		message.format(L"AI champion rules: %d%% chance, maximum %d.",
+			TheGameLogic->getChampionChancePercent(TRUE),
+			TheGameLogic->getChampionMaxCount(TRUE));
+	}
+	else
+	{
+		message.format(L"Human champion rules: %d%% chance, maximum %d per player.",
+			TheGameLogic->getChampionChancePercent(FALSE),
+			TheGameLogic->getChampionMaxCount(FALSE));
+	}
+	TheInGameUI->messageNoFormat(message);
+}
+
+// ------------------------------------------------------------------------------------------------
+static void showChampionCommandUsage(Bool aiPlayers)
+{
+	TheInGameUI->message(aiPlayers
+		? UnicodeString(L"Usage: /aichampion <chance 0-100> <maximum 0-100>, or /aichampion reset")
+		: UnicodeString(L"Usage: /pachampion <chance 0-100> <maximum 0-100>, or /pachampion reset"));
+}
+
+// ------------------------------------------------------------------------------------------------
+static void queueChampionRules(Bool aiPlayers, Int chancePercent, Int maxUnits)
+{
+	GameMessage *message = TheMessageStream->appendMessage(GameMessage::MSG_SET_CHAMPION_RULES);
+	message->appendBooleanArgument(aiPlayers);
+	message->appendIntegerArgument(chancePercent);
+	message->appendIntegerArgument(maxUnits);
+}
+
+// ------------------------------------------------------------------------------------------------
+static Bool handleChampionRulesCommand(AsciiString remainder, Bool aiPlayers)
+{
+	Int chancePercent = 0;
+	Int maxUnits = 0;
+	const ChampionRuleCommandParseResult parseResult =
+		ParseChampionRulesCommand(remainder, aiPlayers, &chancePercent, &maxUnits);
+
+	if (parseResult == CHAMPION_RULE_COMMAND_QUERY)
+	{
+		showChampionRules(aiPlayers);
+		return TRUE;
+	}
+	if (parseResult == CHAMPION_RULE_COMMAND_INVALID)
+	{
+		showChampionCommandUsage(aiPlayers);
+		return TRUE;
+	}
+
+	if (TheGameInfo == nullptr || TheGameInfo->getLocalSlotNum() != 0)
+	{
+		TheInGameUI->message(UnicodeString(L"Only the game host can change champion rules."));
+		return TRUE;
+	}
+
+	queueChampionRules(aiPlayers, chancePercent, maxUnits);
+	return TRUE;
+}
+#endif
+
 Bool handleInGameSlashCommands(UnicodeString uText)
 {
 	AsciiString message;
@@ -177,6 +309,24 @@ Bool handleInGameSlashCommands(UnicodeString uText)
 	remainder.nextToken(&token);
 	token.toLower();
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	if (token == "help")
+	{
+		TheInGameUI->message(UnicodeString(L"/aichampion <chance> <maximum> - Change AI champion rules (host only)"));
+		TheInGameUI->message(UnicodeString(L"/pachampion <chance> <maximum> - Change human champion rules (host only)"));
+		TheInGameUI->message(UnicodeString(L"Use either command without arguments to show its current values, or with reset."));
+		return TRUE;
+	}
+	else if (token == "aichampion")
+	{
+		return handleChampionRulesCommand(remainder, TRUE);
+	}
+	else if (token == "pachampion")
+	{
+		return handleChampionRulesCommand(remainder, FALSE);
+	}
+	else
+#endif
 	if (token == "host")
 	{
 		UnicodeString s;
@@ -365,4 +515,3 @@ WindowMsgHandledType InGameChatSystem( GameWindow *window, UnsignedInt msg,
 	return MSG_HANDLED;
 
 }
-

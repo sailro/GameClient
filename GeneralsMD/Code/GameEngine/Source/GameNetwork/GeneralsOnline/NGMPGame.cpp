@@ -31,6 +31,9 @@ NGMPGameSlot::NGMPGameSlot()
 NGMPGame::NGMPGame()
 {
 	m_isQM = FALSE;
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	resetPendingChampionRules();
+#endif
 
 	NGMP_OnlineServices_LobbyInterface* pLobbyInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_LobbyInterface>();
 	if (pLobbyInterface == nullptr)
@@ -56,6 +59,86 @@ NGMPGame::NGMPGame()
 	// NGMP: Populate slots
 	UpdateSlotsFromCurrentLobby();
 }
+
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+// ------------------------------------------------------------------------------------------------
+// TheSuperHackers @feature sailro 31/08/2026 Retains host champion rules across lobby roster changes.
+// ------------------------------------------------------------------------------------------------
+void NGMPGame::resetPendingChampionRules()
+{
+	m_pendingHumanChampionChancePercent = GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT;
+	m_pendingHumanChampionMaxCount = GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT;
+	m_pendingAIChampionChancePercent = GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT;
+	m_pendingAIChampionMaxCount = GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT;
+	m_championRulesQueuedForMatch = FALSE;
+}
+
+// ------------------------------------------------------------------------------------------------
+Bool NGMPGame::setPendingChampionRules(Bool aiPlayers, Int chancePercent, Int maxUnits)
+{
+	if (!GameLogic::areChampionRulesValid(chancePercent, maxUnits))
+		return FALSE;
+
+	if (aiPlayers)
+	{
+		m_pendingAIChampionChancePercent = chancePercent;
+		m_pendingAIChampionMaxCount = maxUnits;
+	}
+	else
+	{
+		m_pendingHumanChampionChancePercent = chancePercent;
+		m_pendingHumanChampionMaxCount = maxUnits;
+	}
+
+	return TRUE;
+}
+
+// ------------------------------------------------------------------------------------------------
+Int NGMPGame::getPendingChampionChancePercent(Bool aiPlayers) const
+{
+	return aiPlayers ? m_pendingAIChampionChancePercent : m_pendingHumanChampionChancePercent;
+}
+
+// ------------------------------------------------------------------------------------------------
+Int NGMPGame::getPendingChampionMaxCount(Bool aiPlayers) const
+{
+	return aiPlayers ? m_pendingAIChampionMaxCount : m_pendingHumanChampionMaxCount;
+}
+
+// ------------------------------------------------------------------------------------------------
+void NGMPGame::queueChampionRulesForMatch()
+{
+	if (m_championRulesQueuedForMatch)
+		return;
+
+	const Int localSlot = getLocalSlotNum();
+	if (localSlot < 0)
+		return;
+
+	m_championRulesQueuedForMatch = TRUE;
+	if (localSlot != 0)
+		return;
+
+	GameMessage *message;
+	if (m_pendingHumanChampionChancePercent != GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_CHANCE_PERCENT
+			|| m_pendingHumanChampionMaxCount != GENERALS_ONLINE_HUMAN_CHAMPION_UNIT_MAX_COUNT)
+	{
+		message = TheMessageStream->appendMessage(GameMessage::MSG_SET_CHAMPION_RULES);
+		message->appendBooleanArgument(FALSE);
+		message->appendIntegerArgument(m_pendingHumanChampionChancePercent);
+		message->appendIntegerArgument(m_pendingHumanChampionMaxCount);
+	}
+
+	if (m_pendingAIChampionChancePercent != GENERALS_ONLINE_AI_CHAMPION_UNIT_CHANCE_PERCENT
+			|| m_pendingAIChampionMaxCount != GENERALS_ONLINE_AI_CHAMPION_UNIT_MAX_COUNT)
+	{
+		message = TheMessageStream->appendMessage(GameMessage::MSG_SET_CHAMPION_RULES);
+		message->appendBooleanArgument(TRUE);
+		message->appendIntegerArgument(m_pendingAIChampionChancePercent);
+		message->appendIntegerArgument(m_pendingAIChampionMaxCount);
+	}
+}
+#endif
 
 NGMPGame::~NGMPGame()
 {
@@ -408,6 +491,10 @@ void NGMPGame::launchGame(void)
 	TheWritableGlobalData->m_showMetrics = true;
 #endif
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	m_championRulesQueuedForMatch = FALSE;
+#endif
+
 	//TheWritableGlobalData->m_networkPlayerTimeoutTime = 60000;
 	//TheWritableGlobalData->m_networkDisconnectScreenNotifyTime = 2500;
 
@@ -582,6 +669,9 @@ void NGMPGame::reset(void)
 {
 	GameInfo::reset();
 	m_isQM = FALSE;
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	resetPendingChampionRules();
+#endif
 }
 
 void NGMPGame::StartCountdown()

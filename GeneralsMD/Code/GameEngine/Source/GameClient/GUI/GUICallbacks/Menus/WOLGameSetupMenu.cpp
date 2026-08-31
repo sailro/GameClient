@@ -55,6 +55,7 @@
 #include "GameClient/MapUtil.h"
 #include "GameClient/EstablishConnectionsMenu.h"
 #include "GameClient/GameWindowTransitions.h"
+#include "GameClient/GUICallbacks.h"
 #include "GameNetwork/GameSpy/LobbyUtils.h"
 
 #include "GameNetwork/GameSpy/BuddyDefs.h"
@@ -3597,6 +3598,89 @@ int getQR2HostingStatus();
 }
 extern int isThreadHosting;
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+// ------------------------------------------------------------------------------------------------
+static void showLobbyChampionCommandUsage(Bool aiPlayers)
+{
+	GadgetListBoxAddEntryText(
+		listboxGameSetupChat,
+		aiPlayers
+			? UnicodeString(L"Usage: /aichampion <chance 0-100> <maximum 0-100>, or /aichampion reset")
+			: UnicodeString(L"Usage: /pachampion <chance 0-100> <maximum 0-100>, or /pachampion reset"),
+		GameSpyColor[GSCOLOR_CHAT_NORMAL],
+		-1,
+		-1);
+}
+
+// ------------------------------------------------------------------------------------------------
+static Bool handleLobbyChampionRulesCommand(AsciiString remainder, Bool aiPlayers)
+{
+	NGMP_OnlineServices_LobbyInterface *lobbyInterface =
+		NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_LobbyInterface>();
+	if (lobbyInterface == nullptr || !lobbyInterface->IsInLobby())
+		return TRUE;
+
+	NGMPGame *game = lobbyInterface->GetCurrentGame();
+	if (game == nullptr)
+		return TRUE;
+
+	if (!lobbyInterface->IsHost())
+	{
+		GadgetListBoxAddEntryText(
+			listboxGameSetupChat,
+			UnicodeString(L"You must be the lobby host to view or change pending champion rules."),
+			GameSpyColor[GSCOLOR_CHAT_NORMAL],
+			-1,
+			-1);
+		return TRUE;
+	}
+
+	Int chancePercent = 0;
+	Int maxUnits = 0;
+	const ChampionRuleCommandParseResult parseResult =
+		ParseChampionRulesCommand(remainder, aiPlayers, &chancePercent, &maxUnits);
+
+	if (parseResult == CHAMPION_RULE_COMMAND_QUERY)
+	{
+		UnicodeString message;
+		message.format(aiPlayers
+			? L"Pending AI champion rules: %d%% chance, maximum %d."
+			: L"Pending human champion rules: %d%% chance, maximum %d per player.",
+			game->getPendingChampionChancePercent(aiPlayers),
+			game->getPendingChampionMaxCount(aiPlayers));
+		GadgetListBoxAddEntryText(listboxGameSetupChat, message, GameSpyColor[GSCOLOR_CHAT_NORMAL], -1, -1);
+		return TRUE;
+	}
+
+	if (parseResult == CHAMPION_RULE_COMMAND_INVALID)
+	{
+		showLobbyChampionCommandUsage(aiPlayers);
+		return TRUE;
+	}
+
+	if (!game->setPendingChampionRules(aiPlayers, chancePercent, maxUnits))
+	{
+		showLobbyChampionCommandUsage(aiPlayers);
+		return TRUE;
+	}
+
+#if !defined(GENERALS_ONLINE_DISABLE_AUTO_ACCEPT)
+	lobbyInterface->ClearAutoReadyCountdown();
+#endif
+	if (TheNGMPGame && TheNGMPGame->IsCountdownStarted())
+		TheNGMPGame->StopCountdown();
+
+	UnicodeString message;
+	message.format(aiPlayers
+		? L"The host set AI champion rules to %d%% chance and maximum %d."
+		: L"The host set human champion rules to %d%% chance and maximum %d per player.",
+		chancePercent,
+		maxUnits);
+	lobbyInterface->SendAnnouncementMessageToCurrentLobby(message, true);
+	return TRUE;
+}
+#endif
+
 Bool handleGameSetupSlashCommands(UnicodeString uText)
 {
 	AsciiString message;
@@ -3645,6 +3729,10 @@ Bool handleGameSetupSlashCommands(UnicodeString uText)
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/removepassword - Remove the lobby password (host only)."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/maxcameraheight <value> - Set the camera height limit (host only)."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/fill - Fill open slots with Hard AI on Team 4 (host only)."), helpColor, -1, -1);
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/aichampion <chance> <maximum> - Set AI champion rules (host only)."), helpColor, -1, -1);
+		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/pachampion <chance> <maximum> - Set human champion rules (host only)."), helpColor, -1, -1);
+#endif
 		// GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/leave - Return to the main lobby."), helpColor, -1, -1);
 		// GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/quit - Exit the game."), helpColor, -1, -1);
 		GadgetListBoxAddEntryText(listboxGameSetupChat, UnicodeString(L"/support - Open the GeneralsOnline Discord."), helpColor, -1, -1);
@@ -3656,6 +3744,16 @@ Bool handleGameSetupSlashCommands(UnicodeString uText)
 		ShellExecuteA(NULL, "open", "https://discord.playgenerals.online", NULL, NULL, SW_SHOWNORMAL);
 		return TRUE;
 	}
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+	else if (token == "aichampion")
+	{
+		return handleLobbyChampionRulesCommand(remainder, TRUE);
+	}
+	else if (token == "pachampion")
+	{
+		return handleLobbyChampionRulesCommand(remainder, FALSE);
+	}
+#endif
 	else if (token == "friendsonly")
     {
         NGMP_OnlineServicesManager* pOnlineServicesMgr = NGMP_OnlineServicesManager::GetInstance();

@@ -34,6 +34,21 @@
 
 // EXTERNALS //////////////////////////////////////////////////////////////////////////////////////
 
+#if defined(GENERALS_ONLINE_RANDOM_CHAMPION_UNITS)
+enum ChampionRuleCommandParseResult
+{
+	CHAMPION_RULE_COMMAND_QUERY,
+	CHAMPION_RULE_COMMAND_UPDATE,
+	CHAMPION_RULE_COMMAND_INVALID
+};
+
+ChampionRuleCommandParseResult ParseChampionRulesCommand(
+	AsciiString remainder,
+	Bool aiPlayers,
+	Int *chancePercent,
+	Int *maxUnits);
+#endif
+
 //=================================================================================================
 //																				Shell Menus																						 //
 //=================================================================================================
