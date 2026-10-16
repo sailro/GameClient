@@ -178,7 +178,7 @@ void Intro::doGeneralsOnlineLogo()
 
     {
         // Pretext
-        m_unicodeStrings[0] = TheGameText->FETCH_OR_SUBSTITUTE("CREDITS:CustomIntroPretext", L"Modernized Multiplayer Experience by");
+        m_unicodeStrings[0] = L"Modernized Experience by";
         DisplaySetting setting;
         setting.font = "Consolas";
         setting.text = m_unicodeStrings[0].str();
@@ -194,33 +194,12 @@ void Intro::doGeneralsOnlineLogo()
         // Team name
         DisplaySetting setting;
         setting.font = "Consolas";
-        setting.text = L"GeneralsOnline";
+        setting.text = L"PAT THE FAT BASTARD";
         setting.sizeY = 32;
         setting.centerOffsetY = centerOffsetY;
         centerOffsetY += setting.sizeY * resolutionScale * 2;
         setting.bold = true;
         setting.centered = true;
-        settings.push_back(setting);
-    }
-
-	// Website
-	DisplaySetting setting;
-	setting.font = "Consolas";
-	setting.text = L"www.playgenerals.online";
-	setting.sizeY = 16;
-	setting.centerOffsetY = centerOffsetY;
-	centerOffsetY += setting.sizeY * resolutionScale * 2;
-	setting.bold = false;
-	setting.centered = true;
-	settings.push_back(setting);
-
-    {
-        // globe image
-        DisplaySetting setting;
-        setting.imageName = "GlobalGen";
-        setting.centerOffsetY = centerOffsetY;
-        setting.sizeX = (Int)(124 * 0.50f);
-        setting.sizeY = (Int)(124 * 0.50f);
         settings.push_back(setting);
     }
 
@@ -266,7 +245,7 @@ void Intro::doTheSuperHackers()
 
 	{
 		// Pretext
-		m_unicodeStrings[0] = TheGameText->FETCH_OR_SUBSTITUTE("CREDITS:CustomIntroPretext", L"Game improved by");
+		m_unicodeStrings[0] = L"Game powered by";
 		DisplaySetting setting;
 		setting.font = "Consolas";
 		setting.text = m_unicodeStrings[0].str();
@@ -282,34 +261,12 @@ void Intro::doTheSuperHackers()
 		// Team name
 		DisplaySetting setting;
 		setting.font = "Consolas";
-		setting.text = L"THE SUPER HACKERS";
+		setting.text = L"BUD LA MASSE";
 		setting.sizeY = 32;
 		setting.centerOffsetY = centerOffsetY;
 		centerOffsetY += setting.sizeY * resolutionScale * 2;
 		setting.bold = true;
 		setting.centered = true;
-		settings.push_back(setting);
-	}
-	if constexpr (false)
-	{
-		// Website
-		DisplaySetting setting;
-		setting.font = "Consolas";
-		setting.text = L"thesuperhackers.org";
-		setting.sizeY = 16;
-		setting.centerOffsetY = centerOffsetY;
-		centerOffsetY += setting.sizeY * resolutionScale * 2;
-		setting.bold = false;
-		setting.centered = true;
-		settings.push_back(setting);
-	}
-	{
-		// China Hacker image
-		DisplaySetting setting;
-		setting.imageName = "SNHacker2_L";
-		setting.centerOffsetY = centerOffsetY;
-		setting.sizeX = (Int)(122 * 0.50f);
-		setting.sizeY = (Int)(98 * 0.50f);
 		settings.push_back(setting);
 	}
 
